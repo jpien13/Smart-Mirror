@@ -10,15 +10,14 @@ uint8_t clockPin   = 14;
 uint8_t latchPin   = 15;
 uint8_t oePin      = 16;
 
-// Create the Protomatter instance for a 64×32 panel:
 Adafruit_Protomatter matrix(
   64, 4, 1, rgbPins, 4, addrPins, clockPin, latchPin, oePin, false);
 
-const char* ssid     = "SSID";
+const char* ssid     = "wifi";
 const char* password = "password";
 
 WiFiUDP   ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000, 60000);
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -14400, 60000);
 
 void setup(void) {
   Serial.begin(115200);
@@ -32,8 +31,10 @@ void setup(void) {
     Serial.println(F("Matrix init failed!"));
     while (1) delay(10);
   }
+  matrix.setRotation(45);
   matrix.fillScreen(0x000000);
-  matrix.println("CONNECTING...");
+  matrix.setCursor(0, 8);
+  matrix.print("CONNECTING...");
   matrix.show();
 
   Serial.print(F("Connecting to Wi-Fi "));
@@ -47,29 +48,29 @@ void setup(void) {
   Serial.print(F("IP Address: "));
   Serial.println(WiFi.localIP());
 
-  timeClient.begin();
+  timeClient.begin(); 
 }
 
 void loop(void) {
-  timeClient.update();
+  if (timeClient.update()) {
+    int rawHour = timeClient.getHours();    // 0–23
+    int minute  = timeClient.getMinutes();  // 0–59
 
-  // Get the epoch time (already adjusted by –18000 in the constructor)
-  unsigned long epoch = timeClient.getEpochTime();
-  int hh = (epoch  % 86400L) / 3600;   // hour 0–23
-  int mm = (epoch % 3600L)  / 60;      // minute 0–59
-  int ss =  epoch % 60;               // second 0–59
+    int hour12 = rawHour;
+    if (hour12 >= 12) {
+      if (hour12 > 12) hour12 -= 12;
+    }
+    if (hour12 == 0) hour12 = 12;
 
-  // Build a “HH:MM:SS” string
-  char buf[9];
-  sprintf(buf, "%02d:%02d:%02d", hh, mm, ss);
+    char buf[6]; // “h:mm” up to “12:59” + '\0'
+    sprintf(buf, "%2d:%02d", hour12, minute);
 
+    matrix.fillScreen(0x000000);
+    matrix.setCursor(0, 4);
+    matrix.print(buf);
+    matrix.show();
 
-  matrix.fillScreen(0x000000);    // clear 
-  matrix.setCursor(0, 8);         // x=0, y=8 (8px-high font)
-  matrix.print(buf);              // print “12:34:56”
-  matrix.show();                  
-
-  Serial.println(buf);
-
-  delay(1000); 
+    Serial.println(buf);
+  }
+  delay(200);
 }
